@@ -1,24 +1,22 @@
 from pydantic import BaseModel
-from datetime import date
+from datetime import date as dateType
+from typing import Optional
 
 class IncomeBase(BaseModel):
     amount: float
-    date: date
+    date: dateType
     source: str
     is_recurring: bool = False
 
-class IncomeCreate(IncomeBase):
-    pass
+class IncomeUpdate(BaseModel):
+    amount: Optional[float] = None
+    date: Optional[dateType] = None
+    source: Optional[str] = None
+    is_recurring: Optional[bool] = None
 
-class IncomeUpdate(IncomeBase):
-    amount: float | None = None
-    date: date | None = None
-    source: str | None = None
-    is_recurring: bool | None = None
-
-class Income(IncomeBase):
+class IncomeDisplay(IncomeBase):
     id: int
     user_id: int
 
     class Config:
-        from_attributes = True 
+        from_attributes = True

@@ -1,102 +1,99 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from typing import List
 from database import get_db
-from models.expense import Expense
-from models.user import User
-from schemas.expense import ExpenseCreate, ExpenseUpdate, Expense as ExpenseSchema
+from models.expense import DbExpense
+from models.user import DbUser
+from schemas.expense import ExpenseBase, ExpenseUpdate, ExpenseDisplay
 from dependencies import get_current_user
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
 
-@router.post("", response_model=ExpenseSchema)
+
+@router.post("", response_model=ExpenseDisplay)
 def create_expense(
-    expense: ExpenseCreate,
+    expense: ExpenseBase,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: DbUser = Depends(get_current_user)
 ):
-    db_expense = Expense(**expense.model_dump(), user_id=current_user.id)
+    db_expense = DbExpense(**expense.model_dump(), user_id=current_user.id)
     db.add(db_expense)
     db.commit()
     db.refresh(db_expense)
     return db_expense
 
-@router.get("", response_model=List[ExpenseSchema])
+
+@router.get("", response_model=List[ExpenseDisplay])
 def get_expenses(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: DbUser = Depends(get_current_user)
 ):
-    return db.query(Expense).filter(Expense.user_id == current_user.id).all()
+    return db.query(DbExpense).filter(DbExpense.user_id == current_user.id).all()
 
-@router.get("/{expense_id}", response_model=ExpenseSchema)
-def get_expense(
-    expense_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    expense = db.query(Expense).filter(
-        Expense.id == expense_id,
-        Expense.user_id == current_user.id
-    ).first()
-    if not expense:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Expense not found"
-        )
-    return expense
 
-@router.patch("/{expense_id}", response_model=ExpenseSchema)
-def update_expense(
-    expense_id: int,
-    expense_update: ExpenseUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    db_expense = db.query(Expense).filter(
-        Expense.id == expense_id,
-        Expense.user_id == current_user.id
-    ).first()
-    if not db_expense:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Expense not found"
-        )
-    
-    update_data = expense_update.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(db_expense, key, value)
-    
-    db.commit()
-    db.refresh(db_expense)
-    return db_expense
-
-@router.delete("/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_expense(
-    expense_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    db_expense = db.query(Expense).filter(
-        Expense.id == expense_id,
-        Expense.user_id == current_user.id
-    ).first()
-    if not db_expense:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Expense not found"
-        )
-    
-    db.delete(db_expense)
-    db.commit()
-    return None
-
-@router.get("/total/amount", response_model=float)
+@router.get("/total-expense", response_model=dict)
 def get_total_expenses(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: DbUser = Depends(get_current_user)
 ):
-    total = db.query(Expense).filter(Expense.user_id == current_user.id).with_entities(
-        func.sum(Expense.amount)
-    ).scalar()
-    return total or 0.0 
+    expenses = db.query(DbExpense).filter(
+        DbExpense.user_id == current_user.id).all()
+    total = sum(expense.amount for expense in expenses)
+    return {
+        'total-expense': total
+    }
+
+
+@router.patch("/{category}", response_model=List[ExpenseDisplay])
+def update_expenses_by_category(
+    category: str,
+    expense_update: ExpenseUpdate,
+    db: Session = Depends(get_db),
+    current_user: DbUser = Depends(get_current_user)
+):
+    expenses = db.query(DbExpense).filter(
+        DbExpense.category == category,
+        DbExpense.user_id == current_user.id
+    ).all()
+    if not expenses:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No expenses found for category: {category}"
+        )
+
+    for expense in expenses:
+        if expense_update.amount is not None:
+            expense.amount = expense_update.amount
+        if expense_update.date is not None:
+            expense.date = expense_update.date
+        if expense_update.is_recurring is not None:
+            expense.is_recurring = expense_update.is_recurring
+        if expense_update.category is not None:
+            expense.category = expense_update.category
+
+    db.commit()
+    for expense in expenses:
+        db.refresh(expense)
+    return expenses
+
+
+@router.delete("/{category}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_expenses_by_category(
+    category: str,
+    db: Session = Depends(get_db),
+    current_user: DbUser = Depends(get_current_user)
+):
+    expenses = db.query(DbExpense).filter(
+        DbExpense.category == category,
+        DbExpense.user_id == current_user.id
+    ).all()
+    if not expenses:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No expenses found for category: {category}"
+        )
+
+    for expense in expenses:
+        db.delete(expense)
+    db.commit()
+    return None

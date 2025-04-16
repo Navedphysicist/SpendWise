@@ -1,22 +1,21 @@
 from pydantic import BaseModel
-from datetime import date
+from datetime import date as dateType
+from typing import Optional
 
 class ExpenseBase(BaseModel):
     amount: float
-    date: date
+    date: dateType
     category: str
     is_recurring: bool = False
 
-class ExpenseCreate(ExpenseBase):
-    pass
 
-class ExpenseUpdate(ExpenseBase):
-    amount: float | None = None
-    date: date | None = None
-    category: str | None = None
-    is_recurring: bool | None = None
+class ExpenseUpdate(BaseModel):
+    amount: Optional[float] = None
+    date: Optional[dateType] = None
+    category: Optional[str] = None
+    is_recurring: Optional[bool] = None
 
-class Expense(ExpenseBase):
+class ExpenseDisplay(ExpenseBase):
     id: int
     user_id: int
 

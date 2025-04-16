@@ -2,7 +2,8 @@ from sqlalchemy import Column, Integer, Float, String, Boolean, Date, ForeignKey
 from sqlalchemy.orm import relationship
 from database import Base
 
-class Income(Base):
+
+class DbIncome(Base):
     __tablename__ = "incomes"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -10,9 +11,9 @@ class Income(Base):
     date = Column(Date, nullable=False)
     source = Column(String, nullable=False)
     is_recurring = Column(Boolean, default=False)
-    
+
     # Foreign key
     user_id = Column(Integer, ForeignKey("users.id"))
-    
+
     # Relationship
-    user = relationship("User", back_populates="incomes") 
+    user = relationship("DbUser", back_populates="incomes")
